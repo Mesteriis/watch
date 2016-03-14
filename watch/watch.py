@@ -21,13 +21,13 @@ Examples:
 
 from __future__ import print_function
 
-import atv
 import docopt
 import os
 import requests
 import sys
 import youtube_dl
 
+from . import atv
 from progress.helpers import SHOW_CURSOR
 
 

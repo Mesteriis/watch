@@ -30,9 +30,9 @@ setup(
     author='Brenton Cleeland',
     author_email='brenton@brntn.me',
     url='https://github.com/sesh/watch',
-    py_modules=['watch.watch', 'watch.atv'],
+    packages=['watch'],
     package_data={
-        '': ['LICENSE', 'README.md']
+        '': ['LICENSE', 'README.md', 'requirements.txt']
     },
     include_package_data=True,
     entry_points={
