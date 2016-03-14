@@ -1,6 +1,5 @@
-Watch steaming videos on your Apple TV
+# watch: stream videos to your AppleTV
 
----
 
 ## Getting Started
 
@@ -13,13 +12,13 @@ Install `watch` using `pip`:
 
 ## Usage
 
-Figure our your Apple TV's IP address (Settings > Network) then export it to `APPLE_TV_IP`:
+Figure our your AppleTV's IP address (Settings > Network) then export it to `APPLE_TV_IP`:
 
 ```
 > export APPLE_TV_IP=10.1.1.12
 ```
 
-Play a stream on your Apple TV from the command line with:
+Play a stream on your AppleTV from the command line with:
 
 ```
 > watch https://www.youtube.com/watch?v=UfJ-i4Y6DGU
@@ -31,7 +30,7 @@ online streaming services supported by [youtube-dl](https://github.com/rg3/youtu
 
 ### Full Usage
 
-`watch` offers options for overriding the IP address of your Apple TV and starting the video somewhere other
+`watch` offers options for overriding the IP address of your AppleTV and starting the video somewhere other
 that the beginning:
 
 ```
