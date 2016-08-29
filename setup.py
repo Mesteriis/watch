@@ -14,10 +14,23 @@ if sys.argv[-1] == 'publish':
     sys.exit()
 
 
-requires = [
-    r.strip() for r in open('requirements.txt').readlines() if not r.strip().startswith('#') and r.strip()
-]
+def gather_requirements():
+    """
+    Thoughts:
+        - pin requirements in requirements.txt but ignore the pin in setup.py
+        - allow >= in requirements.txt and carry that through
+        - ignore blank lines and comments
+    """
+    requirements = []
+    for r in open('requirements.txt').readlines():
+        if not r.strip().startswith('#') and r.strip():
+            if '==' in r:
+                r = r.split('==')[0]
+            requirements.append(r)
+    return requirements
 
+
+requires = gather_requirements()
 
 version = '1.0.0'
 

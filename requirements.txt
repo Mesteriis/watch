@@ -1,4 +1,4 @@
-docopt==0.6.2
+docopt
 progress==1.2
-requests==2.9.1
-youtube-dl==2016.03.06
+requests
+youtube-dl

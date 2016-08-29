@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 
-"""Watch 1.0.0
+"""Watch 1.1.0
 
 Stream things to your Apple TV from the CLI.
 
 Usage:
-    watch <video_url> [--verbose] [--apple-tv=<atv>] [--start=<start>]
+    watch <video_url> [--verbose] [--apple-tv=<atv>] [--start=<start>] [--force] [--print-streams]
 
 Options:
     --start=<start>       Time (hh:mm:ss) or percentage complete (0.xx) to start through the stream [default: 0.0]
     --apple-tv=<atv>      Override the APPLE_TV_IP environment variable
     --verbose             Enable detailed logging for debugging
+    --force               Just send the damn URL to the Apple TV
+    --print-streams       Print the compatible streams and exit
 
 Examples:
     - watch https://vimeo.com/channels/staffpicks/157239808
@@ -52,9 +54,11 @@ STREAMABLE_TYPES = [
     'video/mp4',
     'application/vnd.apple.mpegurl',
     'application/x-mpegurl',
-    'application/octet-stream'
+    'application/octet-stream',
+    'audio/mpeg'
 ]
 
+COMPATIBLE_STREAM_EXTENSIONS = ['mp4', 'mp3']
 COMPATIBLE_AUDIO_CODECS = ['mp4', 'aac']
 
 
@@ -63,8 +67,8 @@ def _video_is_compatible(v):
     log(DEBUG, v)
 
     ext = v['ext']
-    if ext != 'mp4':
-        log(DEBUG, 'Incompatible: {} is not mp4'.format(ext))
+    if ext not in COMPATIBLE_STREAM_EXTENSIONS:
+        log(DEBUG, 'Incompatible: {} is not one of'.format(ext, ', '.join(COMPATIBLE_STREAM_EXTENSIONS)))
         return False
 
     if 'acodec' in v.keys() and not any([v['acodec'].strip().lower().startswith(x) for x in COMPATIBLE_AUDIO_CODECS]):
@@ -107,22 +111,40 @@ def yt_dl(youtube_url, apple_tv, start=None):
     if 'streamable.com/' in youtube_url:
         stream_id = youtube_url.split('streamable.com/')[1].split('?')[0]
         url = 'https://cdn.streamable.com/video/mp4/{}.mp4'.format(stream_id)
-        return play(url, apple_tv, start)
+        return play(url, apple_tv, start, force=True)
 
+    if 'imgur.com' in youtube_url:
+        url = youtube_url.replace('.gifv', '.mp4')
+        return play(url, apple_tv, start, force=True)
+
+    if 'gfycat.com' in youtube_url:
+        url = youtube_url + '.mp4'
+        return play(url, apple_tv, start, force=True)
+
+    compatible_videos = get_compatible_streams(youtube_url)
+    pick = get_best_stream(compatible_videos)
+    play(pick['url'], apple_tv, start)
+
+
+def get_compatible_streams(stream_url):
     # falling back to youtube_dl
     yt = youtube_dl.YoutubeDL(params={'quiet': LOG_LEVEL > INFO})
-    info = yt.extract_info(youtube_url, download=False)
+    info = yt.extract_info(stream_url, download=False)
 
     # youtube playlist / embed not really supported, pick the first video
     if 'entries' in info.keys():
         info = info['entries'][0]
 
     compatible_videos = [x for x in info['formats'] if _video_is_compatible(x)]
-    pick = get_best_stream(compatible_videos)
-    play(pick['url'], apple_tv, start)
+    log(INFO, compatible_videos)
+    return compatible_videos
 
 
-def play(stream_url, apple_tv=None, start=None):
+def play(stream_url, apple_tv=None, start=None, force=False):
+    if force:
+        atv.play(stream_url, apple_tv, start)
+        return
+
     log(INFO, 'Stream URL: {}'.format(stream_url))
     response = requests.head(stream_url, allow_redirects=True)
     log(INFO, 'Content-Type: {}'.format(response.headers['content-type']))
@@ -143,6 +165,12 @@ def main():
         global LOG_LEVEL
         LOG_LEVEL = DEBUG
 
+    if args['--print-streams']:
+        streams = get_compatible_streams(args['<video_url>'])
+        for s in streams:
+            print('[{}] {}x{}: {}'.format(s['ext'], s.get('width', '???'), s.get('height', '???'), s['url']))
+        sys.exit()
+
     # use the --apple-tv CLI argument (as an override), then fallback to the environment variable
     if args['--apple-tv']:
         atv_ip = args['--apple-tv']
@@ -154,13 +182,15 @@ def main():
             return
 
     try:
-        play(args['<video_url>'], atv_ip, start)
+        play(args['<video_url>'], atv_ip, start, args['--force'])
     except youtube_dl.utils.DownloadError:
         log(ERROR, 'Unsupported video URL: {}\n'.format(args['<video_url>']))
         log(ERROR, 'If this url contains a streamable video that you expect to work, please file an issue on Github:\n'
                    'https://github.com/sesh/watch\n\n'
                    'Please include the full output from this command:\n'
                    'watch --verbose {}'.format(args['<video_url>']))
+    except requests.exceptions.ConnectionError:
+        log(ERROR, 'Lost connection to the Apple TV')
     except (KeyboardInterrupt, SystemExit):
         # always let the process exit cleanly
         pass
