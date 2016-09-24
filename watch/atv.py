@@ -8,29 +8,14 @@ https://nto.github.io/AirPlay.html
 from __future__ import print_function
 
 import requests
+import socket
+import time
+import uuid
 
-from progress.bar import Bar
+from .bar import TimedBar
 
 
-class TimedBar(Bar):
-    suffix = '%(pos_str)s / %(dur_str)s'
-
-    def _nice_time(self, seconds):
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-
-        if hours:
-            return '{:d}:{:02d}:{:02d}'.format(hours, minutes, seconds)
-        else:
-            return '{:02d}:{:02d}'.format(minutes, seconds)
-
-    @property
-    def dur_str(self):
-        return self._nice_time(self.max)
-
-    @property
-    def pos_str(self):
-        return self._nice_time(self.index)
+USER_AGENT = 'MediaControl/1.0'
 
 
 def server_info(apple_tv):
@@ -76,10 +61,17 @@ def play(url, apple_tv, start=0.0003):
 
     data = 'Content-Location: {}\nStart-Position:{:.4f}\n'.format(url, start)
 
+    session_id = uuid.uuid4().hex
+
     # ensure that `response.content` is never read, since that will kill the connection
-    response = requests.post('http://{}:7000/play'.format(apple_tv), data=data, stream=True, headers={
-        'Content-Type': 'text/parameters'
+    stream = requests.post('http://{}:7000/play'.format(apple_tv), data=data, stream=True, headers={
+        'Content-Type': 'text/parameters',
+        'User-Agent': USER_AGENT,
+        'X-Apple-Session-ID': session_id
     })
+
+    # get the socket for the connection, we'll be sending some junk to that later
+    stream_socket = socket.fromfd(stream.raw.fileno(), socket.AF_INET, socket.SOCK_STREAM)
 
     bar = None
     previous = 0
@@ -87,11 +79,19 @@ def play(url, apple_tv, start=0.0003):
     has_played = False
     has_jumped = False
 
+    junk_timer = time.time()
+
     while 1:
         percentage, pos, duration = position(apple_tv)
 
         if percentage:
             has_played = True
+
+            # send a "junk" /scrub request to to socket every 10 seconds or so
+            if time.time() - junk_timer > 10:
+                message = "GET /scrub HTTP/1.1\n\n"
+                stream_socket.send(message)
+                junk_timer = time.time()
 
             # scrub to the desired spot in the video if we need to
             if not has_jumped and jump_to:
@@ -106,5 +106,5 @@ def play(url, apple_tv, start=0.0003):
                 previous = previous + 1
 
         elif has_played:
-            response.close()
+            stream.close()
             return
