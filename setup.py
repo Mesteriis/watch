@@ -39,7 +39,7 @@ setup(
     name='watch',
     version=version,
     description='Watch things on your Apple TV',
-    long_description=open('README.md').read(),
+    long_description='',
     author='Brenton Cleeland',
     author_email='brenton@brntn.me',
     url='https://github.com/sesh/watch',
